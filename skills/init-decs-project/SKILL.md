@@ -154,6 +154,8 @@ BUILDSPACE_ID=$(jq -r '.buildspaceId' "$DECS_CONFIG")
 
 The first argument must be a UUID (the project node ID). The second argument (if present) is the project name.
 
+**If no arguments were provided, STOP and ask the user for the project node ID.** Explain: "I need the ID of your project node in Relentless. Open your project, click the colored kind tag in the top-left (e.g. `PROJECT`) to copy its UUID, then run `/init-decs-project <that-id>`." Do NOT guess, create a new project, or proceed without it.
+
 ```bash
 # Parse: first arg is project node UUID, rest is optional project name
 PROJECT_NODE_ID="<first argument — must be a UUID>"
