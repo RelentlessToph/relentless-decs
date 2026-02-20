@@ -1,52 +1,71 @@
 # DECS for Relentless
 
-Decision-Embedded Context System — Claude Code hooks for architectural decision tracking with [Relentless](https://relentless.build).
+Decision-Embedded Context System — architectural decision tracking integrated with Relentless.
 
 ## What It Does
 
-Claude automatically records architectural decisions at the end of each coding session and recalls them at the start of the next. Decisions are stored as Decision nodes in Relentless, organized in a Decisions space inside each project node.
+Claude automatically records architectural decisions at the end of each coding session and recalls them at the start of the next. Decisions are stored as Decision nodes in Relentless, organized inside DECS container nodes within your projects.
 
-## Prerequisites
+## API Key Model
 
-- A [Relentless](https://relentless.build) account
-- [Claude Code](https://claude.ai/code) CLI
-- `jq` and `curl` installed
+DECS uses a **DECS-scoped API key** — a restricted key that can only access `decision` and `decs` node kinds. This is separate from (and more limited than) the buildspace's full API key.
+
+Every Relentless buildspace has two API keys:
+
+| Key                    | Scope                          | Purpose                     |
+| ---------------------- | ------------------------------ | --------------------------- |
+| **Buildspace API Key** | Full access to all node kinds  | General API use             |
+| **DECS API Key**       | `decision` + `decs` nodes only | DECS hooks and integrations |
+
+DECS hooks **must** use the DECS key, not the buildspace key. This ensures that shell hooks running on your machine cannot read or modify anything outside of decisions — principle of least privilege.
 
 ## Setup
 
-### 1. Clone and install
+### 1. Install hooks
 
 ```bash
-git clone https://github.com/RelentlessToph/relentless-decs.git
-cd relentless-decs
-./install.sh
+./decs/install.sh
 ```
 
 This copies hooks to `~/.claude/hooks/` and the init skill to `~/.claude/skills/`.
 
-### 2. Configure credentials
+### 2. Create credentials file
 
-Generate an API key from your Relentless account settings. Create `~/.claude/decs-config.json`:
+Open your Relentless profile (sidebar → Settings). Under **DECS API Key**, copy the key. Then create `~/.claude/decs-config.json`:
 
 ```json
 {
-  "relentlessApiKey": "rlnt_your_key_here",
-  "relentlessUrl": "https://relentless.build",
+  "relentlessApiKey": "rlnt_your_DECS_key_here",
+  "relentlessUrl": "https://www.relentless.build",
   "buildspaceId": "your-buildspace-id"
 }
 ```
 
-Your Buildspace ID is the UUID in the URL bar when logged in (e.g. `/workspace/019c2f...`).
+**Important**: Use the **DECS API Key**, not the Buildspace API Key. The DECS key is restricted to decision and DECS nodes only — this is by design. Using the full buildspace key will work but violates the principle of least privilege.
 
-### 3. Enable in a repo
+Your Buildspace ID is the UUID in the URL bar when logged in (e.g. `/buildspace/019c2f...`).
 
-In Claude Code, run:
+### 3. Create a DECS node in Relentless
+
+Open Relentless. Use Quick Capture (`Cmd+N`) and select **DECS**. Enter your project name. Place it inside a project node.
+
+### 4. Connect to your repo
+
+Copy the DECS node ID by clicking the `DECS` kind tag in the top-left of the node. Then either:
+
+**Option A** — Run the skill in Claude Code:
 
 ```
-/init-decs-project <project-node-id> [project-name]
+/init-decs-project <paste-decs-id>
 ```
 
-This creates a "project-name - Decisions" space inside your Relentless project node and writes `.decs.json` to the repo root. Get the project node ID by clicking its kind tag (e.g. `PROJECT`) in Relentless.
+**Option B** — Just tell Claude:
+
+```
+Track DECS decisions for this repo in <paste-decs-id>
+```
+
+Both create a `.decs.json` file in your repo root. Commit this file so teammates share the same setup.
 
 ## How It Works
 
@@ -69,6 +88,12 @@ Each Decision node has four fields:
 
 Mark foundational choices as "Key Decision" — they are always injected into every session. Recent non-key decisions are limited to the 10 most recent.
 
-## License
+## Upgrading
 
-MIT
+If you installed DECS before the DECS key model was introduced (before Feb 2026), run:
+
+```
+/decs-upgrade
+```
+
+This migrates your config from the old unscoped API key to the new DECS-scoped key.

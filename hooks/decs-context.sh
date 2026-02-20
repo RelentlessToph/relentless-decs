@@ -1,6 +1,7 @@
 #!/bin/bash
 # DECS Context Injection Hook
 # Runs on UserPromptSubmit — adds decisions as context when "decision" or "decs" is mentioned
+# Uses DECS-scoped API key (restricted to decision + decs node kinds)
 
 # === CONFIG ===
 DECS_CONFIG="$HOME/.claude/decs-config.json"
@@ -91,7 +92,8 @@ fi
 if [ "$CACHE_VALID" = false ]; then
     RESPONSE=$(curl -s "${BASE_URL}/api/nodes?parentId=${SPACE_ID}&kind=decision&buildspaceId=${BUILDSPACE_ID}" \
       -H "Authorization: Bearer ${API_KEY}")
-    echo "$RESPONSE" > "$CACHE_FILE"
+    # Extract nodes array (API returns { "nodes": [...] })
+    echo "$RESPONSE" | jq '.nodes // .' > "$CACHE_FILE" 2>/dev/null
 fi
 
 DECISIONS=$(cat "$CACHE_FILE")

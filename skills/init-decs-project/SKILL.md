@@ -1,8 +1,8 @@
 ---
 name: init-decs-project
-description: Initialize DECS decision tracking for a repository. Use when setting up architectural decision tracking, enabling DECS, or when user says "init decs", "set up decision tracking", or "configure DECS for this project". Creates a Decisions space inside a Relentless project node.
+description: Connect a DECS node to this repository. Use when setting up architectural decision tracking, enabling DECS, or when user says "init decs", "set up decision tracking", "track DECS decisions", or "configure DECS for this project". Links an existing DECS node in Relentless to this repo via .decs.json.
 disable-model-invocation: true
-argument-hint: <project-node-id> [project-name]
+argument-hint: <decs-node-id>
 allowed-tools: Bash, Write, Read
 ---
 
@@ -25,7 +25,7 @@ It's like folding a fitted sheet—you fix one corner and another pops out. In s
 
 DECS (Decision-Embedded Context System) solves this by making prior decisions visible to every session:
 
-- **Storage**: Decisions live in Relentless as Decision nodes inside a Decisions space (which lives inside a project node)
+- **Storage**: Decisions live in Relentless as Decision nodes inside a DECS container node (which lives inside a project node)
 - **Injection**: A SessionStart hook queries the Relentless API and shows prior decisions as context
 - **Coherence**: Claude naturally catches contradictions because it can SEE the history
 
@@ -53,7 +53,7 @@ These labels help future sessions understand the NATURE of a decision, not just 
 Relentless hierarchy:
 
   Project Node (e.g. "My App")
-  └── "My App - Decisions" (collection)    ← relentlessSpaceId in .decs.json
+  └── "My App - Decisions" (kind: decs)     ← relentlessSpaceId in .decs.json
       ├── Decision 1
       ├── Decision 2
       └── ...
@@ -66,14 +66,22 @@ Relentless hierarchy:
                        │
                        ▼
               Relentless API query
-              (GET /api/nodes?parentId=SPACE_ID&kind=decision&buildspaceId=BUILDSPACE_ID)
+              (GET /api/nodes?parentId=SPACE_ID&kind=decision)
                        │
                        ▼
               Context injected into session
               "Prior Architectural Decisions: ..."
 ```
 
-The `.decs.json` file maps THIS repo to a Decisions space inside a Relentless project node. The hook script reads it, queries Relentless for decision nodes, and injects them. Claude sees the history. Contradictions become visible.
+The `.decs.json` file maps THIS repo to a DECS node inside a Relentless project. The hook script reads it, queries Relentless for decision nodes, and injects them. Claude sees the history. Contradictions become visible.
+
+## API Key: DECS-Scoped Key
+
+DECS hooks use a **DECS-scoped API key** — a restricted key that can only access `decision` and `decs` node kinds. This is separate from the buildspace's full API key. Every buildspace automatically has a DECS key.
+
+**Why a restricted key?** Shell hooks run on the user's machine with the API key in a JSON file. Restricting the key to decisions-only means even if the key leaks, it cannot read or modify anything outside of decisions. Principle of least privilege.
+
+The key is stored in `~/.claude/decs-config.json` under the `relentlessApiKey` field.
 
 ## How to Use DECS Day-to-Day
 
@@ -96,7 +104,7 @@ Decisions are recorded **automatically by Claude**:
 2. Claude creates Decision nodes via the Relentless API — no manual work required
 3. Key decisions (foundational, load-bearing choices) are flagged automatically
 
-You can also create decisions manually in the Relentless UI or via `/decision` in the command bar if needed.
+You can also create decisions manually in the Relentless UI or via the DECS node's "Add Decision" button.
 
 ### How Decisions Appear
 
@@ -112,7 +120,7 @@ Decisions can evolve:
 
 ---
 
-# Initialize DECS for Current Repository
+# Connect DECS Node to This Repository
 
 Now that you understand the philosophy, here's the execution.
 
@@ -124,18 +132,15 @@ Now that you understand the philosophy, here's the execution.
 
 ## What This Does
 
-Creates a "PROJECT_NAME - Decisions" collection inside an existing Relentless project node, then writes `.decs.json` to the repo root.
+Connects an existing DECS node in Relentless to this repository by writing `.decs.json`.
 
-**Usage:** `/init-decs-project <project-node-id> [project-name]`
+**Usage:** `/init-decs-project <decs-node-id>`
 
-- `project-node-id` (required): The UUID of the project node in Relentless. Users can copy this by clicking the kind tag (e.g. `PROJECT`) on the node.
-- `project-name` (optional): Name for the Decisions space. Defaults to directory name.
+- `decs-node-id` (required): The UUID of the DECS node in Relentless. Users create this node in the Relentless UI first (Quick Capture → DECS), then copy the ID by clicking the kind tag.
 
 **What it creates:**
 
-- A "PROJECT_NAME - Decisions" collection node inside the project node
-- A bootstrap decision to confirm the setup works
-- `.decs.json` in the repo root pointing to the Decisions space
+- `.decs.json` in the repo root (or app directory for monorepos) pointing to the DECS node
 
 ## Relentless API Config
 
@@ -148,79 +153,84 @@ BASE_URL=$(jq -r '.relentlessUrl' "$DECS_CONFIG")
 BUILDSPACE_ID=$(jq -r '.buildspaceId' "$DECS_CONFIG")
 ```
 
+**Note**: The `relentlessApiKey` field should contain a **DECS-scoped API key** (restricted to decision + decs node kinds), not the full buildspace key. If the user hasn't set this up yet, see Prerequisites below.
+
 ## Steps
 
-### 1. Parse Arguments
+### 1. Check Prerequisites
 
-The first argument must be a UUID (the project node ID). The second argument (if present) is the project name.
+First verify `~/.claude/decs-config.json` exists. If not, tell the user:
 
-**If no arguments were provided, STOP and ask the user for the project node ID.** Explain: "I need the ID of your project node in Relentless. Open your project, click the colored kind tag in the top-left (e.g. `PROJECT`) to copy its UUID, then run `/init-decs-project <that-id>`." Do NOT guess, create a new project, or proceed without it.
+> I need your Relentless credentials to continue. Create `~/.claude/decs-config.json` with:
+>
+> ```json
+> {
+>   "relentlessApiKey": "rlnt_...",
+>   "relentlessUrl": "https://www.relentless.build",
+>   "buildspaceId": "your-buildspace-id"
+> }
+> ```
+>
+> Open your Relentless profile (sidebar → Settings) and find the **DECS API Key** section. Copy that key — not the Buildspace API Key. The DECS key is restricted to decision and DECS nodes only, which is what the hooks need. Your buildspace ID is the UUID in the URL bar.
+
+### 2. Parse Arguments
+
+The first argument must be a UUID (the DECS node ID).
+
+**If no arguments were provided, STOP and ask the user for the DECS node ID.** Explain: "I need the ID of your DECS node in Relentless. Open your DECS node, click the colored `DECS` tag in the top-left to copy its UUID, then run `/init-decs-project <that-id>`." Do NOT guess or proceed without it.
 
 ```bash
-# Parse: first arg is project node UUID, rest is optional project name
-PROJECT_NODE_ID="<first argument — must be a UUID>"
-PROJECT_NAME="<second argument, or directory name from context above>"
+DECS_NODE_ID="<first argument — must be a UUID>"
 ```
 
-### 2. Verify Project Node Exists
+### 3. Verify DECS Node Exists
 
 ```bash
-curl -s "${BASE_URL}/api/nodes/${PROJECT_NODE_ID}?buildspaceId=${BUILDSPACE_ID}" \
+curl -s "${BASE_URL}/api/nodes/${DECS_NODE_ID}?buildspaceId=${BUILDSPACE_ID}" \
   -H "Authorization: Bearer ${API_KEY}"
 ```
 
-If it returns an error or the node doesn't exist, tell the user and stop. The project node must already exist in Relentless.
+Verify:
 
-### 3. Create Decisions Space Inside Project
+- The response contains a valid node
+- The node's `kind` is `"decs"` — if not, warn the user they may have provided the wrong ID
 
-```bash
-curl -s -X POST "${BASE_URL}/api/nodes?buildspaceId=${BUILDSPACE_ID}" \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "kind": "collection",
-    "title": "PROJECT_NAME - Decisions",
-    "parentId": "PROJECT_NODE_ID"
-  }'
-```
+### 4. Create .decs.json
 
-Extract the `id` from the JSON response — this is the Decisions space ID.
-
----
-
-### Create .decs.json
-
-Write to repo root with the space ID (from either mode):
+Write to the repo root (or the current app directory for monorepos):
 
 ```json
 {
-  "relentlessSpaceId": "SPACE_ID"
+  "relentlessSpaceId": "DECS_NODE_ID"
 }
 ```
 
-### Create Bootstrap Decision
+For monorepos: if the current directory is inside a subdirectory (e.g., `apps/web/`), write `.decs.json` there instead of the repo root. This enables layered discovery — app-specific decisions override shared ones.
 
-Create the first decision to confirm everything works:
+### 5. Optionally Update DECS Node Details
+
+If the DECS node's content is mostly empty, offer to fill in details by PATCHing the node:
 
 ```bash
-curl -s -X POST "${BASE_URL}/api/nodes?buildspaceId=${BUILDSPACE_ID}" \
+curl -s -X PATCH "${BASE_URL}/api/nodes/${DECS_NODE_ID}" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-    "kind": "decision",
-    "title": "Use DECS for architectural decision tracking",
     "content": {
-      "what": "We adopted DECS (Decision-Embedded Context System) for tracking architectural decisions in this project.",
-      "why": "AI sessions are stateless. Without explicit decision tracking, successive sessions introduce contradictory patterns. DECS creates a feedback loop: decisions go in, context comes out, coherence emerges.",
-      "purpose": "Maintain architectural coherence across AI coding sessions and preserve the reasoning behind choices.",
-      "constraints": "All significant architectural choices should be documented as decisions. Future sessions will see these automatically via the SessionStart hook.",
-      "isKeyDecision": true
-    },
-    "parentId": "SPACE_ID"
+      "projectName": "...",
+      "repoUrl": "...",
+      "appPath": "...",
+      "techStack": "...",
+      "description": "...",
+      "branchingProcedure": "...",
+      "testingProcedure": "..."
+    }
   }'
 ```
 
-### Verify
+Infer what you can from the codebase (package.json, framework, directory structure). Ask the user for anything you can't determine.
+
+### 6. Verify
 
 Run the hook to confirm decisions are being fetched:
 
@@ -232,10 +242,10 @@ Run the hook to confirm decisions are being fetched:
 
 Tell the user:
 
-- Decisions space created in Relentless
-- Location of `.decs.json`
-- How to create decisions (in Relentless UI or via `/decision` command)
-- That the bootstrap decision has been created
+- `.decs.json` created at `<path>`
+- DECS node verified in Relentless
+- How decisions work (automatic at session end, visible at session start)
+- Remind them to commit `.decs.json` so teammates share the configuration
 
 ## Decision Format
 

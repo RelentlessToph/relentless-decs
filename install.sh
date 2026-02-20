@@ -11,15 +11,19 @@ DECS_CONFIG="$CLAUDE_DIR/decs-config.json"
 # Create directories
 mkdir -p "$CLAUDE_DIR/hooks"
 mkdir -p "$CLAUDE_DIR/skills/init-decs-project"
+mkdir -p "$CLAUDE_DIR/skills/decs-upgrade"
 
 # Copy hooks
 cp "$SCRIPT_DIR/hooks/"*.sh "$CLAUDE_DIR/hooks/"
 chmod +x "$CLAUDE_DIR/hooks/"*.sh
 echo "Hooks installed"
 
-# Copy skill
+# Copy skills
 cp "$SCRIPT_DIR/skills/init-decs-project/SKILL.md" "$CLAUDE_DIR/skills/init-decs-project/"
-echo "Skill installed"
+if [ -d "$SCRIPT_DIR/skills/decs-upgrade" ]; then
+    cp "$SCRIPT_DIR/skills/decs-upgrade/SKILL.md" "$CLAUDE_DIR/skills/decs-upgrade/"
+fi
+echo "Skills installed"
 
 # Merge hook entries into settings.json
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
@@ -46,24 +50,31 @@ echo ""
 # Check if config exists
 if [ -f "$DECS_CONFIG" ]; then
     echo "Config found at $DECS_CONFIG"
+    echo ""
+    # Check if key might be a full-scope key (warn user)
+    echo "IMPORTANT: Verify your config uses a DECS-scoped API key (not the full"
+    echo "buildspace key). Open your Relentless profile → DECS API Key section to"
+    echo "find the correct key. Run /decs-upgrade if you need to swap keys."
 else
     echo "To complete setup, create ~/.claude/decs-config.json:"
     echo ""
-    echo "  1. Generate an API key from your Relentless account settings"
-    echo "  2. Find your Buildspace ID in the URL bar (e.g. /workspace/019c2f...)"
-    echo "  3. Create the config file:"
+    echo "  1. Open your Relentless profile (sidebar → Settings)"
+    echo "  2. Find the 'DECS API Key' section (NOT the Buildspace API Key)"
+    echo "  3. Copy the DECS key and your Buildspace ID from the URL bar"
+    echo "  4. Create the config file:"
     echo ""
     echo '     {'
-    echo '       "relentlessApiKey": "rlnt_YOUR_KEY",'
-    echo '       "relentlessUrl": "https://relentless.build",'
+    echo '       "relentlessApiKey": "rlnt_YOUR_DECS_KEY",'
+    echo '       "relentlessUrl": "https://www.relentless.build",'
     echo '       "buildspaceId": "your-buildspace-id"'
     echo '     }'
     echo ""
+    echo "  The DECS key is restricted to decision and DECS nodes only."
+    echo "  This is intentional — shell hooks should have minimal access."
 fi
 
+echo ""
 echo "To enable DECS in a repo:"
 echo ""
-echo "  /init-decs-project [project-name]"
+echo "  /init-decs-project <decs-node-id>"
 echo ""
-echo "  Or link to an existing Decisions space:"
-echo "  /init-decs-project <space-id>"

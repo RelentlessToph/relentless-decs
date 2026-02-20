@@ -1,6 +1,7 @@
 #!/bin/bash
 # DECS Stop Hook: Block and inject decision hygiene check
 # Uses block+reason so Claude sees the instruction and continues
+# Uses DECS-scoped API key (restricted to decision + decs node kinds)
 
 # === CONFIG ===
 DECS_CONFIG="$HOME/.claude/decs-config.json"
@@ -65,7 +66,7 @@ rm -f "$SESSION_MARKER"
 touch "$HYGIENE_DONE"
 
 # Build the reason message
-REASON="DECS Decision Hygiene Check: Before ending, review this session for decisions worth documenting. WHAT TO DOCUMENT: 1) Technology choices, API design, architectural patterns, 2) Meaningful insights about how this system works or should work, 3) Context future sessions need to maintain coherence, 4) Discovered constraints that affect future work, 5) Reversals or updates to prior decisions. HOW TO CREATE: POST to ${BASE_URL}/api/nodes?buildspaceId=${BUILDSPACE_ID} with header 'Authorization: Bearer <key>' from ~/.claude/decs-config.json (relentlessApiKey field). Body: {\"kind\": \"decision\", \"title\": \"<concise title>\", \"content\": {\"what\": \"...\", \"why\": \"...\", \"purpose\": \"...\", \"constraints\": \"...\", \"isKeyDecision\": false}, \"parentId\": \"${SPACE_ID}\"}. KEY DECISIONS: Set isKeyDecision to true only for foundational choices that all future sessions must see. Use sparingly — only for load-bearing architectural choices. If existing decisions evolved this session, update them via PATCH ${BASE_URL}/api/nodes/<id>?buildspaceId=${BUILDSPACE_ID}. If nothing to document, say 'No new decisions' and stop."
+REASON="DECS Decision Hygiene Check: Before ending, review this session for decisions worth documenting. WHAT TO DOCUMENT: 1) Technology choices, API design, architectural patterns, 2) Meaningful insights about how this system works or should work, 3) Context future sessions need to maintain coherence, 4) Discovered constraints that affect future work, 5) Reversals or updates to prior decisions. HOW TO CREATE: POST to ${BASE_URL}/api/nodes?buildspaceId=${BUILDSPACE_ID} with header 'Authorization: Bearer <key>' from ~/.claude/decs-config.json (relentlessApiKey field — this is the DECS-scoped key). Body: {\"kind\": \"decision\", \"title\": \"<concise title>\", \"content\": {\"what\": \"...\", \"why\": \"...\", \"purpose\": \"...\", \"constraints\": \"...\", \"isKeyDecision\": false}, \"parentId\": \"${SPACE_ID}\"}. KEY DECISIONS: Set isKeyDecision to true only for foundational choices that all future sessions must see. Use sparingly — only for load-bearing architectural choices. If existing decisions evolved this session, update them via PATCH ${BASE_URL}/api/nodes/<id> with same auth header and {\"content\": {...updated fields...}} in body. If nothing to document, say 'No new decisions' and stop."
 
 # Block and inject hygiene check
 jq -n --arg reason "$REASON" '{"decision": "block", "reason": $reason}'
