@@ -1,0 +1,14 @@
+{
+  "name": "relentless-decs-marketplace",
+  "owner": {
+    "name": "Relentless",
+    "url": "https://relentless.build"
+  },
+  "plugins": [
+    {
+      "name": "relentless-decs",
+      "source": ".",
+      "description": "DECS v2 session bootstrap, awareness, and decision-hygiene hooks + MCP server for Relentless projects. Requires Claude Code >= 2.1.214."
+    }
+  ]
+}

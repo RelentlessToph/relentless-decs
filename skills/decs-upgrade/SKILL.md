@@ -1,203 +1,194 @@
 ---
 name: decs-upgrade
-description: Upgrade DECS to the latest version. Migrates from old unscoped API key to new DECS-scoped key, updates hooks, and verifies configuration. Run when DECS hooks are out of date or after updating via install.sh.
-disable-model-invocation: true
-allowed-tools: Bash, Read, Write
+description: Check whether DECS is actually working in this repository, and migrate a v1 install (decs-config.json, hand-installed ~/.claude/hooks scripts, a decisions-scoped rlnt_ key, a .decs.json carrying only relentlessSpaceId) to the v2 plugin and a project-scoped credential. Use when DECS seems silent, stale, or misconfigured, when a human asks to upgrade or fix DECS, or when both the old shell hooks and the plugin appear to be installed at once.
+allowed-tools: Bash, Read, Write, Edit
 ---
 
-# DECS Upgrade
+# Check and upgrade DECS
 
-This skill walks you through upgrading a DECS-enabled project to the latest DECS version. Work through each upgrade step that applies.
+Two jobs, in this order: find out what state DECS is actually in here, then
+either repair it or migrate it forward. Do the diagnosis first — a lot of
+"DECS is broken" turns out to be one dead credential, and a lot of "DECS is
+fine" turns out to be a v1 install that has been quietly recording to a
+place nobody reads.
 
-## Current State
+**Silence is DECS's designed failure mode.** DECS never blocks work, which
+means a completely broken DECS looks exactly like a DECS with nothing to
+say. Never conclude things are fine because nothing errored. Only the
+catalog fetch in Check 3 proves anything.
 
-- **DECS config**: !`cat ~/.claude/decs-config.json 2>/dev/null || echo "NOT FOUND"`
-- **Project config**: !`cat .decs.json 2>/dev/null || echo "NOT FOUND — this repo may not be DECS-enabled"`
-- **Hooks installed**: !`ls ~/.claude/hooks/get-decisions.sh ~/.claude/hooks/decs-context.sh ~/.claude/hooks/decs-stop.sh 2>/dev/null || echo "MISSING"`
+## Diagnose: the three checks
 
-If project config is missing, tell the user to run `/init-decs-project` first and stop.
+All three must pass. There is no partial "working."
 
-## Relentless API Config
-
-```bash
-DECS_CONFIG="$HOME/.claude/decs-config.json"
-API_KEY=$(jq -r '.relentlessApiKey // empty' "$DECS_CONFIG")
-BASE_URL=$(jq -r '.relentlessUrl // empty' "$DECS_CONFIG")
-BUILDSPACE_ID=$(jq -r '.buildspaceId // empty' "$DECS_CONFIG")
-```
-
----
-
-## Upgrade Checklist
-
-Work through each section below. Skip sections where the check already passes.
-
----
-
-### Upgrade 1: Migrate to DECS-Scoped API Key (Feb 2026)
-
-**What changed**: Every Relentless buildspace now has two separate API keys:
-
-| Key                    | Scope                          | Purpose                     |
-| ---------------------- | ------------------------------ | --------------------------- |
-| **Buildspace API Key** | Full access to all node kinds  | General API use             |
-| **DECS API Key**       | `decision` + `decs` nodes only | DECS hooks and integrations |
-
-DECS hooks should use the **DECS-scoped key** for principle of least privilege. Shell hooks running on the user's machine should not have access to the full buildspace.
-
-**Check**: Test if the current key can access non-DECS node kinds (which would mean it's the full key, not the DECS key):
+**Check 1 — project identity.** Read `.decs.json` at the repository root
+(and in each app directory of a monorepo). It must carry a `v2` block whose
+`projectScopeId` is present and **not null**.
 
 ```bash
-# Try to list notebook nodes — a DECS key would return 403 or empty results
-response=$(curl -s "${BASE_URL}/api/nodes?kind=notebook&buildspaceId=${BUILDSPACE_ID}" \
-  -H "Authorization: Bearer ${API_KEY}")
-
-# Check if we got nodes back (full key) or an error/empty (DECS key)
-node_count=$(echo "$response" | jq '.nodes | length' 2>/dev/null)
-has_error=$(echo "$response" | jq -r '.error // empty' 2>/dev/null)
+cat .decs.json
 ```
 
-**If `node_count > 0` (full key detected)** — this upgrade is needed:
+- `v2.projectScopeId` is a real id — good, continue.
+- `v2.projectScopeId` is `null` — this directory declares a v2 identity but
+  was never linked to a concrete project scope. This is a documented,
+  non-error state, not a bug. A human links it in the app; nothing will
+  record until they do.
+- No `v2` block at all, only `relentlessSpaceId` — this is a **v1** repo.
+  Go to _Migrating from v1_ below.
+- No `.decs.json` anywhere — this repository does not record to DECS.
+  Offer `/init-decs-project`; do not assume.
 
-Tell the user:
-
-> Your DECS config is using the **full buildspace API key**, which gives shell hooks access to your entire buildspace. For security, DECS hooks should use the restricted **DECS API Key** that can only access decision and DECS nodes.
->
-> To swap the key:
->
-> 1. Open your Relentless profile (sidebar → Settings)
-> 2. Find the **DECS API Key** section
-> 3. Copy the DECS key (starts with `rlnt_`)
-> 4. I'll update your `~/.claude/decs-config.json` with the new key
-
-Wait for the user to provide the DECS key, then update the config:
+**Check 2 — a credential is visible.** The project-scoped credential
+belongs in this repository's `.claude/settings.local.json` under `env` as
+`RELENTLESS_DECS_API_KEY`. A shell-profile export also works.
 
 ```bash
-# Read current config, replace the API key
-jq --arg key "NEW_DECS_KEY" '.relentlessApiKey = $key' "$HOME/.claude/decs-config.json" > /tmp/decs-config-tmp.json \
-  && mv /tmp/decs-config-tmp.json "$HOME/.claude/decs-config.json" \
-  && chmod 600 "$HOME/.claude/decs-config.json"
+grep -l RELENTLESS_DECS_API_KEY .claude/settings.local.json 2>/dev/null
+[ -n "$RELENTLESS_DECS_API_KEY" ] && echo "set in this environment"
 ```
 
-**If `has_error == "scope_restricted"` or `node_count == 0`** — already using DECS key, skip this step.
+Note that the `env` block is read at session start, so a credential written
+during this session is present in the file but absent from your environment
+until the human restarts. That is expected, not a failure.
 
-**Verify** after updating:
+**Check 3 — the catalog fetch.** This is the only check that proves
+anything.
 
 ```bash
-# Test DECS key works for decisions
-curl -s "${BASE_URL}/api/nodes?kind=decision&buildspaceId=${BUILDSPACE_ID}" \
-  -H "Authorization: Bearer $(jq -r '.relentlessApiKey' ~/.claude/decs-config.json)" \
-  | jq '.nodes | length'
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $RELENTLESS_DECS_API_KEY" \
+  "{host}/api/semantic-definitions"
 ```
 
-If this returns a number (even 0), the key works for its intended purpose.
+`{host}` is `v2.host` from `.decs.json`. 200 means DECS is set up and live.
+Anything else means it is not:
 
----
+- **401** — no credential presented, or it is expired or revoked. A
+  project-scoped credential derives its validity from live project
+  membership on every call, so it also dies the moment its minter leaves
+  the project. The human mints a fresh one.
+- **403** — authenticated, but not permitted for this project scope. Most
+  often the credential belongs to a different project than the one in this
+  repository's `.decs.json`.
+- **404** — this deployment does not have DECS v2 enabled. Check `v2.host`.
+- **429** — rate limited. Wait; do not retry in a loop.
 
-### Upgrade 2: Remove Legacy Linear Config (if present)
+If all three pass and DECS still seems absent, the credential and the
+project scope are fine and the missing piece is the integration layer — the
+plugin, the MCP entry, or the hooks. Go to _Is the plugin actually
+installed?_ below.
 
-**What changed**: DECS previously supported Linear as a storage backend. This is deprecated — Relentless is the only supported backend.
+## Detect v1 leftovers
 
-**Check**: Does `~/.claude/decs-config.json` contain Linear-specific fields?
+v1 DECS was a hand-installed set of shell scripts driven by a global config
+file and a decisions-scoped API key. The v2 plugin supersedes all of it.
+Look for these:
 
 ```bash
-jq 'has("linearApiKey") or has("teamId") or has("decisionLabelId") or has("keyDecisionLabelId")' "$HOME/.claude/decs-config.json"
+ls ~/.claude/decs-config.json ~/.claude/decs-installed.json 2>/dev/null
+ls ~/.claude/hooks/get-decisions.sh ~/.claude/hooks/decs-context.sh \
+   ~/.claude/hooks/decs-stop.sh 2>/dev/null
+grep -n "get-decisions\|decs-context\|decs-stop" ~/.claude/settings.json 2>/dev/null
 ```
 
-**If `true`** — remove legacy fields:
+What each one means:
+
+- **`~/.claude/decs-config.json`** — the v1 credential and identity file
+  (`relentlessApiKey`, `relentlessUrl`, `buildspaceId`). v2 reads none of
+  it. The key inside it is a **decisions-scoped `rlnt_` API key**, which is
+  a different thing from a project-scoped credential: it was restricted to
+  `decision` and `decs` node kinds across a whole buildspace, and it cannot
+  authenticate a single semantic action. It is not upgradable — a
+  project-scoped credential has to be minted fresh.
+- **`get-decisions.sh` / `decs-context.sh` / `decs-stop.sh` in
+  `~/.claude/hooks/`, plus matching entries in `~/.claude/settings.json`** —
+  the v1 hook install. If the plugin is also active, **every SessionStart,
+  UserPromptSubmit and Stop now fires twice**, once from each install. That
+  is the single most common symptom of a half-finished migration.
+- **`.decs.json` carrying only `relentlessSpaceId`** — v1 project identity:
+  a DECS container node id, not a project scope id. The two are not
+  interchangeable and one cannot be derived from the other.
+- **`~/.claude/decs-installed.json`** — v1 install metadata (version,
+  timestamp, file list). Harmless, and useful evidence of what was
+  installed; it means nothing to v2.
+
+## Migrating from v1
+
+There is no in-place conversion. v1 identity is a node id and v1 auth is a
+buildspace-wide decisions-scoped key; v2 identity is a project scope id and
+v2 auth is a credential bound to that one project scope. Both have to be
+obtained fresh.
+
+1. **Ask the human to mint a project-scoped credential.** You cannot do
+   this — no agent can. Tell them the exact path: open the project in
+   Relentless, scroll to the **DECS** section on the project, find
+   **Credentials**, click **+ New**, and copy what it shows. That is the
+   only time the credential is displayed in full. Any live member of the
+   project can mint one; it is not owner-only. They will also need to tell
+   you the **project scope id** for this repository.
+2. **Then follow `/init-decs-project`.** It is the canonical path: read the
+   agent docs, verify the credential with a catalog fetch, place the
+   credential in `.claude/settings.local.json`, write the `v2` block into
+   `.decs.json`, install the plugin, restart. Do not improvise a shorter
+   version of it here.
+
+When you write the `v2` block, **leave `relentlessSpaceId` in place.** The
+v2 block is added alongside it, not in place of it. The two identities
+coexist deliberately, and the legacy path still reads the old key.
+
+## Is the plugin actually installed?
 
 ```bash
-jq 'del(.linearApiKey, .teamId, .decisionLabelId, .keyDecisionLabelId, .projectId)' \
-  "$HOME/.claude/decs-config.json" > /tmp/decs-config-tmp.json \
-  && mv /tmp/decs-config-tmp.json "$HOME/.claude/decs-config.json" \
-  && chmod 600 "$HOME/.claude/decs-config.json"
+claude --version
+claude plugin list 2>/dev/null | grep -i relentless
 ```
 
-The config should now contain only:
+The plugin requires Claude Code **2.1.214 or newer**. Below that,
+`SessionStart`'s `source` field cannot distinguish a forked conversation
+from a resumed one, and two windows would silently share one DECS session.
 
-```json
-{
-  "relentlessApiKey": "rlnt_...",
-  "relentlessUrl": "https://www.relentless.build",
-  "buildspaceId": "..."
-}
+```
+claude plugin marketplace add RelentlessToph/relentless-decs
+claude plugin install relentless-decs@relentless-decs-marketplace
 ```
 
----
+Run both. A repository can declare the marketplace in
+`extraKnownMarketplaces` and the plugin in `enabledPlugins` and still have
+nothing installed — on current Claude Code, being listed does not complete
+an installation. When settings mention a plugin that clearly is not
+running, check this first.
 
-### Upgrade 3: Update Hooks to Latest Version
+## Cleaning up v1 artifacts
 
-**Check**: Compare installed hooks against the repo versions:
+**Only with the human's explicit confirmation, one item at a time.** These
+are files in their home directory that you did not create, and some of them
+still work. Show them what you found and what removing it would mean; let
+them decide.
 
-```bash
-# Check if repo has newer hooks
-diff ~/.claude/hooks/get-decisions.sh ./decs/hooks/get-decisions.sh 2>/dev/null
-diff ~/.claude/hooks/decs-context.sh ./decs/hooks/decs-context.sh 2>/dev/null
-diff ~/.claude/hooks/decs-stop.sh ./decs/hooks/decs-stop.sh 2>/dev/null
-```
+The one cleanup worth actively recommending is the double-firing hooks: if
+the plugin is installed and `~/.claude/settings.json` still carries the v1
+`get-decisions` / `decs-context` / `decs-stop` entries, every one of those
+three events runs twice per session. Removing those three entries from
+their personal `~/.claude/settings.json` — never the repository's committed
+`.claude/settings.json` — fixes it, and loses nothing: the plugin does
+everything those scripts did.
 
-**If any diffs found** — re-run the installer:
+`~/.claude/decs-config.json` still drives the plugin's legacy fallback mode
+for any _other_ repository that has a v1 `.decs.json` and no v2 identity.
+Deleting it is safe only once every repository the human works in has moved
+to v2. Say that before they delete it, rather than after.
 
-```bash
-./decs/install.sh
-```
+## Report
 
-This copies hooks and skills from the repo to `~/.claude/` and merges hook entries into `settings.json`.
+Say plainly:
 
-**Key changes in latest hooks:**
+- Which of the three checks passed, and the exact status code the catalog
+  fetch returned.
+- What v1 leftovers you found, and specifically whether hooks are firing
+  twice.
+- What changed, what needs a session restart, and what still needs a human
+  (minting a credential, linking a null `projectScopeId`).
 
-- `get-decisions.sh`: Layered discovery for monorepos (walks up finding ALL .decs.json files), `.nodes` wrapper handling
-- `decs-context.sh`: `.nodes` wrapper handling for API response consistency
-- `decs-stop.sh`: Updated hygiene message referencing DECS-scoped key, fixed PATCH endpoint format
-
----
-
-### Upgrade 4: Verify Base URL
-
-**Check**: Is the `relentlessUrl` correct?
-
-```bash
-jq -r '.relentlessUrl' "$HOME/.claude/decs-config.json"
-```
-
-The correct value is `https://www.relentless.build`. If it's `https://relentless.build` (without www), update it:
-
-```bash
-jq '.relentlessUrl = "https://www.relentless.build"' "$HOME/.claude/decs-config.json" > /tmp/decs-config-tmp.json \
-  && mv /tmp/decs-config-tmp.json "$HOME/.claude/decs-config.json" \
-  && chmod 600 "$HOME/.claude/decs-config.json"
-```
-
----
-
-### Upgrade 5: Verify Everything Works
-
-Run the SessionStart hook and confirm output:
-
-```bash
-~/.claude/hooks/get-decisions.sh
-```
-
-You should see:
-
-- "=== DECS: Prior Architectural Decisions ===" header
-- "Key Decisions (always active)" section if any exist
-- "Recent Decisions" section for non-key decisions
-
-If the hook produces no output, check:
-
-1. `.decs.json` exists in the repo root (or parent directory)
-2. The `relentlessSpaceId` in `.decs.json` points to a valid DECS node
-3. The DECS node has child decision nodes
-
----
-
-## After Upgrade
-
-Tell the user:
-
-- What was upgraded and what changed
-- Whether the key was migrated from full to DECS-scoped
-- Whether legacy Linear config was cleaned up
-- Whether hooks were updated to latest version
-- That the next session start will use the updated configuration
+If DECS is not working and cannot be fixed in this session, say so once and
+get back to the work in front of you. DECS never gates work.
