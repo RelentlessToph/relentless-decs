@@ -1,7 +1,7 @@
 {
   "name": "relentless-decs",
   "displayName": "Relentless DECS",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "DECS v2 session bootstrap, awareness, and decision-hygiene hooks + MCP server for Relentless projects. Supersedes the hand-installed ~/.claude/hooks DECS install (decs/install.sh) entirely. REQUIRES Claude Code >= 2.1.214 — no plugin.json field exists to enforce this (Claude Code has no engines/minVersion mechanism as of this writing), so it is stated here and in decs/README.md instead: below 2.1.214, SessionStart's `source` field cannot distinguish a forked window from a resumed one, and this plugin would re-attach the same DECS session to a forked conversation.",
   "author": {
     "name": "Relentless",

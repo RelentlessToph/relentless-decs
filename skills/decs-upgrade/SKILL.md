@@ -171,8 +171,21 @@ the plugin is installed and `~/.claude/settings.json` still carries the v1
 `get-decisions` / `decs-context` / `decs-stop` entries, every one of those
 three events runs twice per session. Removing those three entries from
 their personal `~/.claude/settings.json` — never the repository's committed
-`.claude/settings.json` — fixes it, and loses nothing: the plugin does
-everything those scripts did.
+`.claude/settings.json` — fixes it, and the plugin does everything those
+scripts did.
+
+**Sequence the removal around a restart, not before it.** Claude Code
+hot-reloads the hooks section of `settings.json` into every RUNNING
+session, but plugin hooks only apply at session start — the two do not
+change over at the same moment. Remove the v1 entries while sessions are
+open and every one of them loses DECS coverage live (no more decision
+injection, no more hygiene check), with nothing replacing it until
+restart; this was learned by breaking the DECS development machine itself.
+The double-firing window is the safe state; the coverage hole is the
+dangerous one. So: confirm the plugin actually loads (`claude plugin
+list` shows it enabled, no error), let the human finish or restart their
+open sessions, and remove the three entries as the last step — never
+first.
 
 `~/.claude/decs-config.json` still drives the plugin's legacy fallback mode
 for any _other_ repository that has a v1 `.decs.json` and no v2 identity.

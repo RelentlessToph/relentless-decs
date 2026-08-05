@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.3 (relentless-decs plugin)
+# decs-version: 1.0.4 (relentless-decs plugin)
 #
 # DECS v2 — UserPromptSubmit hook.
 #

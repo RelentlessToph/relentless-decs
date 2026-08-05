@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.3 (relentless-decs plugin)
+# decs-version: 1.0.4 (relentless-decs plugin)
 #
 # DECS v2 — Stop hook: hygiene check, BLOCKING per ratified Q1
 # (docs/decs-v2/ai-interfacing-proposal.md §6) with the
