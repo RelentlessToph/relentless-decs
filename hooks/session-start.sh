@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.4 (relentless-decs plugin)
+# decs-version: 1.0.5 (relentless-decs plugin)
 #
 # DECS v2 — SessionStart hook: session bootstrap.
 #
@@ -46,9 +46,10 @@ run_legacy_fallback() {
 }
 
 if ! decs_v2_source_resolver "$REPO_ROOT"; then
-    # No decs/lib/resolve-decs-identity.sh in this checkout — nothing to
-    # resolve v2 identity from. Legacy hooks resolve their own identity
-    # independently, so try the legacy fallback directly.
+    # Neither the checkout's decs/lib copy nor the plugin-bundled copy of
+    # resolve-decs-identity.sh could be sourced — a damaged install.
+    # Legacy hooks resolve their own identity independently, so try the
+    # legacy fallback directly.
     run_legacy_fallback
     exit 0
 fi

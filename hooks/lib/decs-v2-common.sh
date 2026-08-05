@@ -1,13 +1,13 @@
 #!/bin/bash
-# decs-version: 1.0.4 (relentless-decs plugin)
+# decs-version: 1.0.5 (relentless-decs plugin)
 #
 # decs-v2-common.sh — shared helpers for the relentless-decs Claude Code
 # plugin's native v2 hooks (session-start.sh, user-prompt-submit.sh,
 # stop.sh). Sourced via ${CLAUDE_PLUGIN_ROOT}/hooks/lib/decs-v2-common.sh —
 # safe because this file lives INSIDE the plugin directory and travels with
-# it into the plugin cache on install (unlike decs/lib/resolve-decs-identity.sh,
-# which lives OUTSIDE decs/plugin/ and is reached a different way — see
-# decs_v2_repo_root() below).
+# it into the plugin cache on install, as does its sibling
+# resolve-decs-identity.sh (the vendored identity library — see
+# decs_v2_source_resolver() below for how the two copies relate).
 #
 # Pure bash + jq + curl. Fails open throughout: every function that can fail
 # returns a non-zero status and an empty/absent result rather than aborting
@@ -21,34 +21,41 @@
 # directory, and files OUTSIDE the plugin's own tree are not carried along
 # (installed plugins cannot reference paths that traverse out of their own
 # root). decs/lib/resolve-decs-identity.sh is a SIBLING of decs/plugin/, not
-# a descendant of it, so a ${CLAUDE_PLUGIN_ROOT}-relative path cannot reach
-# it once the plugin is installed from the marketplace.
+# a descendant of it, so a ${CLAUDE_PLUGIN_ROOT}-relative path could not
+# reach it once the plugin is installed from the marketplace — and through
+# v1.0.4 that meant CONSUMER repos (a .decs.json, no vendored decs/ tree)
+# silently resolved nothing: no v2 session, no bootstrap, no hygiene, while
+# the MCP half kept working. Reported live by the first real consumer.
 #
-# The fix is not to vendor a copy inside decs/plugin/ — that would drift
-# from the real P7-6 library the moment either side changed, exactly the
-# class of bug the identity library's own header exists to prevent ("never
-# reimplement the walk"). Instead: these hooks only do anything useful
-# inside a checkout of a repo that has vendored the decs/ toolkit (today,
-# only this repo), so they find THAT checkout's own repo root via git and
-# source ITS decs/lib/resolve-decs-identity.sh — the real, current,
-# committed copy, every time. A repo with no decs/lib (or no git checkout
-# at all) yields no repo root here, every v2-mode function below fails
-# open, and the calling hook falls through to silence or to its legacy
-# fallback exactly as if no .decs.json existed.
+# So the resolver is now vendored INSIDE the plugin tree
+# (hooks/lib/resolve-decs-identity.sh) as a byte-identical copy of the
+# canonical decs/lib/resolve-decs-identity.sh (identical minus the version
+# stamp line, enforced by decs/tests/plugin-resolver-vendored-test.sh — the
+# drift risk that previously argued against vendoring is answered by that
+# test, not by leaving consumers broken). Preference order in
+# decs_v2_source_resolver: the CHECKOUT's own decs/lib copy first (a decs
+# development checkout always runs its current committed resolver, even
+# ahead of a plugin release), then the plugin-bundled copy (every consumer
+# repo, where only .decs.json exists).
 decs_v2_repo_root() {
     git rev-parse --show-toplevel 2>/dev/null
 }
 
-# Sources decs/lib/resolve-decs-identity.sh from the given repo root into
-# the CALLER's shell (this function must be called with `source`'d effect,
-# i.e. plain invocation — not in a subshell — so resolve_decs_identity()
-# and its RESOLVE_DECS_* globals become available to the caller).
-# Returns 1 (fails open) if the repo root is empty or the library is absent.
+# Sources resolve-decs-identity.sh into the CALLER's shell (this function
+# must be called with `source`'d effect, i.e. plain invocation — not in a
+# subshell — so resolve_decs_identity() and its RESOLVE_DECS_* globals
+# become available to the caller). Repo-vendored copy first, plugin-bundled
+# copy second (see header). Returns 1 (fails open) only when neither
+# exists — which means a damaged plugin install.
 decs_v2_source_resolver() {
     local repo_root="$1"
-    [ -n "$repo_root" ] || return 1
-    local lib="$repo_root/decs/lib/resolve-decs-identity.sh"
-    [ -f "$lib" ] || return 1
+    local lib=""
+    if [ -n "$repo_root" ] && [ -f "$repo_root/decs/lib/resolve-decs-identity.sh" ]; then
+        lib="$repo_root/decs/lib/resolve-decs-identity.sh"
+    elif [ -f "$(dirname "${BASH_SOURCE[0]}")/resolve-decs-identity.sh" ]; then
+        lib="$(dirname "${BASH_SOURCE[0]}")/resolve-decs-identity.sh"
+    fi
+    [ -n "$lib" ] || return 1
     # shellcheck source=/dev/null
     source "$lib"
     return 0
