@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.1 (relentless-decs plugin)
+# decs-version: 1.0.2 (relentless-decs plugin)
 #
 # DECS v2 — SessionStart hook: session bootstrap.
 #
