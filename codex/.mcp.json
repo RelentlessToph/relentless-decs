@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "relentless-decs": {
+      "type": "http",
+      "url": "https://www.relentless.build/api/mcp",
+      "bearer_token_env_var": "RELENTLESS_DECS_API_KEY"
+    }
+  }
+}

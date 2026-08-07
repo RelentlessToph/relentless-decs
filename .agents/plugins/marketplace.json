@@ -1,0 +1,14 @@
+{
+  "name": "relentless-decs-codex-marketplace",
+  "owner": {
+    "name": "Relentless",
+    "url": "https://relentless.build"
+  },
+  "plugins": [
+    {
+      "name": "relentless-decs-codex",
+      "source": "./codex",
+      "description": "DECS v2 session bootstrap, awareness, and decision-hygiene hook + MCP server for Relentless projects, packaged for Codex CLI."
+    }
+  ]
+}
