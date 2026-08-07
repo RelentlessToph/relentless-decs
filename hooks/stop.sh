@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.5 (relentless-decs plugin)
+# decs-version: 1.1.0 (relentless-decs plugin)
 #
 # DECS v2 — Stop hook: hygiene check, BLOCKING per ratified Q1
 # (docs/decs-v2/ai-interfacing-proposal.md §6) with the
@@ -76,7 +76,7 @@ BODY=$(printf '%s' "$RESPONSE" | sed '$d')
 
 touch "$HYGIENE_DONE"
 
-RECORD_HINT="Record decisions via the MCP tool add_decs_decision, or POST to /api/semantic-actions/add.decs.decision with this project's credential (never a raw curl typed by hand — see decs/README.md). Target scope: ${PROJECT_SCOPE_ID}. Session: ${DECS_SESSION_ID}."
+RECORD_HINT="Record decisions via the MCP tool add_decs_decision, or POST to /api/semantic-actions/add.decs.decision with this project's credential (never a raw curl typed by hand — see decs/README.md). Target scope: ${PROJECT_SCOPE_ID}. Session: ${DECS_SESSION_ID}. Before recording, check whether an existing decision already covers this ground with list_decs_decision — one amended record beats two that disagree, and update_decs_decision needs the version that read returns."
 
 if [ "$CODE" != "200" ]; then
     if [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then

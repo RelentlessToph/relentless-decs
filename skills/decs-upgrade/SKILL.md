@@ -159,6 +159,30 @@ nothing installed — on current Claude Code, being listed does not complete
 an installation. When settings mention a plugin that clearly is not
 running, check this first.
 
+### Is it recent enough? (a fourth thing worth checking)
+
+`claude plugin list` reports the installed version. **Below 1.1.0**, DECS is
+working but is telling this session much less than it could:
+
+- SessionStart injects key-decision TITLES only, with no node ids attached,
+  so nothing in the session can expand one.
+- Ordinary (non-key) decisions are invisible entirely.
+
+1.1.0 injects the full what / why / purpose / constraints of the project's
+key decisions and its ten most recent ordinary ones, each with a node id.
+Update with:
+
+```
+claude plugin update relentless-decs@relentless-decs-marketplace
+```
+
+Note that the READ TOOLS — `list_decs_decision`, `list_decs_plan`,
+`list_decs_project` — do **not** depend on the plugin version at all. The MCP
+server is remote and builds its tool list from the live registry, so those
+appear in `/mcp` on any installed version. Only the hook's injection changes
+with the plugin. If the tools are missing, the problem is the credential or
+the deployment, never a stale plugin.
+
 ## Cleaning up v1 artifacts
 
 **Only with the human's explicit confirmation, one item at a time.** These

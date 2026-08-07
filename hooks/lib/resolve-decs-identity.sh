@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.5 (relentless-decs plugin — vendored copy of decs/lib/resolve-decs-identity.sh, identical minus this line; pinned by decs/tests/plugin-resolver-vendored-test.sh)
+# decs-version: 1.1.0 (relentless-decs plugin — vendored copy of decs/lib/resolve-decs-identity.sh, identical minus this line; pinned by decs/tests/plugin-resolver-vendored-test.sh)
 #
 # resolve-decs-identity.sh — v2 dual-resolution library for .decs.json.
 #

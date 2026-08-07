@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.0.5 (relentless-decs plugin)
+# decs-version: 1.1.0 (relentless-decs plugin)
 #
 # DECS v2 — SessionStart hook: session bootstrap.
 #
@@ -60,44 +60,95 @@ V2_HOST="$RESOLVE_DECS_V2_HOST"
 LEGACY_ID="$RESOLVE_DECS_LEGACY_ID"
 API_KEY="${RELENTLESS_DECS_API_KEY:-}"
 
+# Condensed start hooks (opt-in). Unset — the default — asks the server for
+# decision BODIES, which is what the v1 hook this plugin replaced always
+# injected and what Toph ruled the default should be. Set it when the receiving
+# context is small enough that prose costs more than it is worth: the bootstrap
+# then carries ids and titles, and list_decs_decision reads any of them on
+# demand. Nothing becomes unreachable either way.
+case "${RELENTLESS_DECS_CONDENSED_START:-}" in
+    1 | true | TRUE | yes | on) CONDENSED=1 ;;
+    *) CONDENSED=0 ;;
+esac
+
+# Render one decision. Bodies when the server sent them, a reference line when
+# it did not (condensed mode, or a budget tier that dropped prose). The node id
+# is on every line either way — that is what makes a reference expandable
+# through list_decs_decision, and it is precisely what the titles-only shape
+# this replaced could not do.
+DECISION_JQ='
+def field($label; $v): if ($v // "") == "" then empty else "**\($label):** \($v)" end;
+def render:
+  "### \(.title)",
+  "`\(.decisionNodeId)`",
+  (if (.what // null) == null then
+     empty
+   else
+     field("What"; .what), field("Why"; .why),
+     field("Purpose"; .purpose), field("Constraints"; .constraints),
+     (if .bodyTruncated then "_(clamped — read it whole with list_decs_decision)_" else empty end)
+   end),
+  "";
+'
+
 render_bootstrap_context() {
     local context="$1"
     [ -n "$context" ] && [ "$context" != "null" ] || return 0
 
+    local condensed_note=""
+    [ "$CONDENSED" = "1" ] && condensed_note="
+Condensed start hooks are on (RELENTLESS_DECS_CONDENSED_START): decision bodies
+were not requested. Read any of the ids above with list_decs_decision."
+
     local text
-    text=$(printf '%s' "$context" | jq -r '
-        (if (.keyDecisions.count // 0) > 0 then
-            "Key decisions (\(.keyDecisions.count)): " +
-            ((.keyDecisions.recentTitles // []) | join("; "))
+    text=$(printf '%s' "$context" | jq -r "$DECISION_JQ"'
+        (if ((.keyDecisions.recent // []) | length) > 0 then
+            "## Key decisions (\(.keyDecisions.count)) — foundational; contradicting one needs saying so out loud",
+            "",
+            ((.keyDecisions.recent // [])[] | render)
+         elif (.keyDecisions.count // 0) > 0 then
+            "Key decisions: \(.keyDecisions.count) (none listed — read them with list_decs_decision)",
+            ""
+         else empty end),
+        (if ((.recentDecisions.recent // []) | length) > 0 then
+            "## Recent decisions (\(.recentDecisions.count) filed in total)",
+            "",
+            ((.recentDecisions.recent // [])[] | render)
+         elif (.recentDecisions.count // 0) > 0 then
+            "Other decisions on file: \(.recentDecisions.count) — read them with list_decs_decision",
+            ""
          else empty end),
         (if (.openQuestions.count // 0) > 0 then
-            "Open questions (\(.openQuestions.count)): " +
-            ((.openQuestions.recent // []) | map(.title) | join("; "))
+            "## Open questions (\(.openQuestions.count))",
+            ((.openQuestions.recent // [])[] | "- \(.title) `\(.questionNodeId)`"),
+            ""
          else empty end),
         (
             (.unreadByEventType // {}) as $u |
             ($u | to_entries | map(select(.value > 0))) as $nz |
             if ($nz | length) > 0 then
-                "Unread: " + ($nz | map("\(.key) x\(.value)") | join(", "))
+                "Unread: " + ($nz | map("\(.key) x\(.value)") | join(", ")), ""
             else empty end
         ),
         (if ((.truncated // []) | length) > 0 then
-            "(bootstrap context trimmed: " + ((.truncated) | join(", ")) + ")"
+            "_(bootstrap trimmed to fit: " + ((.truncated) | join(", ")) +
+            " — everything trimmed is still readable through list_decs_decision)_"
          else empty end)
     ' 2>/dev/null)
 
     local title
     title=$(printf '%s' "$context" | jq -r '.project.title // "this project"' 2>/dev/null)
 
-    [ -n "$text" ] || text="No open decisions or questions recorded yet."
+    [ -n "$text" ] || text="No decisions or open questions recorded yet."
 
     local full="=== DECS v2: ${title} ===
 ${text}
 Record decisions via the MCP tool add_decs_decision (or POST to
 /api/semantic-actions/add.decs.decision with this project's credential —
-never a raw curl typed by hand, see decs/README.md). Ask via
+never a raw curl typed by hand, see decs/README.md). Read more with
+list_decs_decision, list_decs_plan and list_decs_project. Ask via
 add_decs_question; answers surface automatically in this session's
-awareness — no need to re-poll."
+awareness — no need to re-poll.${condensed_note}"
 
     jq -n --arg ctx "$full" '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": $ctx}}'
 }
@@ -158,11 +209,18 @@ run_v2_bootstrap() {
             --arg effort "$EFFORT" \
             --arg nativeSessionRef "$CC_SESSION_ID" \
             --arg reattach "$reattach" \
+            --argjson condensed "$CONDENSED" \
             '{consumerId:$consumerId, provider:"anthropic"}
              | (if $model != "" then .model = $model else . end)
              | (if $effort != "" then .effort = $effort else . end)
              | (if $nativeSessionRef != "" then .nativeSessionRef = $nativeSessionRef else . end)
-             | (if $reattach != "" then .decsSessionId = $reattach else . end)'
+             | (if $reattach != "" then .decsSessionId = $reattach else . end)
+             # Sent only when asked for. A server older than this plugin has a
+             # `.strict()` input schema and would refuse an unknown key, so an
+             # unconditional `condensed:false` would break every session
+             # against a lagging deployment — for a field whose absence already
+             # means false.
+             | (if $condensed == 1 then .condensed = true else . end)'
     }
 
     local input_json envelope response code body
