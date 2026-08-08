@@ -1,6 +1,6 @@
 {
   "name": "relentless-decs-codex",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "DECS v2 session bootstrap, decision-hygiene hook, and MCP server for Relentless projects, packaged for Codex CLI. Same four provenance/session behaviors as the Claude Code plugin (decs/plugin), expressed in Codex-native primitives (config.toml-shaped hooks.json, bearer_token_env_var MCP auth). Verified against codex-cli 0.146.0 — hook system existence and hook-invoked outbound HTTP were empirically probed live (throwaway CODEX_HOME, no real credential), not assumed from docs alone.",
   "author": {
     "name": "Relentless",
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "Relentless DECS",
     "shortDescription": "DECS v2 session bootstrap, awareness, and decision hygiene for Relentless projects",
-    "longDescription": "Registers this Codex session with a Relentless project's DECS v2 credential, bootstraps prior decisions and open questions at session start, and prompts a decision-hygiene review before the session ends. Publishes the eighteen agent-reachable DECS semantic actions as MCP tools, including the three reads that let an agent recall what a project has already decided and planned.",
+    "longDescription": "Registers this Codex session with a Relentless project's DECS v2 credential, bootstraps prior decisions and open questions at session start, and prompts a decision-hygiene review before the session ends. Publishes the twenty agent-reachable DECS semantic actions as MCP tools, including the three reads that let an agent recall what a project has already decided and planned.",
     "developerName": "Relentless",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],

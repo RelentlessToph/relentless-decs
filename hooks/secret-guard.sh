@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.1.0 (relentless-decs plugin)
+# decs-version: 1.1.1 (relentless-decs plugin)
 # DECS Secret Guard — PreToolUse caution-and-confirm for a raw curl/wget
 # that appears to carry a DECS credential (RR-4, docs/decs-v2/phase7-packages.md).
 #

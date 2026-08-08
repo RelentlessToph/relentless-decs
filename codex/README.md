@@ -23,13 +23,30 @@ Codex CLI 0.146.0 ships a native plugin system — `.codex-plugin/plugin.json`
   is directly installable without needing anything from the repo root.
 
 ```bash
-codex plugin marketplace add /path/to/relentless/decs/codex
+codex plugin marketplace add RelentlessToph/relentless-decs
 codex plugin add relentless-decs-codex@relentless-decs-codex-marketplace
 ```
 
-(Or point `marketplace add` at a Git remote instead of a local path once
-this branch is on one, the same tradeoff `decs/plugin`'s README documents
-for Claude Code's `extraKnownMarketplaces`.)
+That is the same public repo the Claude Code plugin is published to. One repo
+serves both because the two ecosystems read their marketplace manifest from
+different paths — Claude Code `.claude-plugin/marketplace.json`, Codex
+`.agents/plugins/marketplace.json` — so neither can shadow the other. The
+Claude Code plugin sits at the repo root; this one is in `codex/`, named by
+`"source": "./codex"` in the generated root manifest. Verified end to end
+against codex-cli 0.147.0 from a throwaway `$CODEX_HOME`: marketplace add
+against the public remote, then `plugin add`, resolves and installs 1.1.0.
+
+Installing from a local checkout still works and is what to use when testing
+an unpushed change:
+
+```bash
+codex plugin marketplace add /path/to/relentless/decs/codex
+```
+
+(That path resolves `decs/codex/.agents/plugins/marketplace.json`, which is
+carried in the monorepo for exactly this and is deliberately NOT mirrored —
+two manifests declaring the same marketplace name in one published tree is an
+ambiguity a reader would have to resolve by experiment.)
 
 A first-time hook in a given `$CODEX_HOME` requires interactive **hook
 trust** — Codex will prompt to trust `relentless-decs-codex`'s hooks the
@@ -93,7 +110,7 @@ curl -s https://www.relentless.build/api/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-`relentless-decs` publishes the same eighteen agent-reachable semantic
+`relentless-decs` publishes the same twenty agent-reachable semantic
 actions as MCP tools, same tool-name mapping, as `decs/plugin` — see that
 package's README for the list; nothing about the tool surface differs
 between the two clients. The tool list comes from the server on every

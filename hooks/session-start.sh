@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.1.0 (relentless-decs plugin)
+# decs-version: 1.1.1 (relentless-decs plugin)
 #
 # DECS v2 — SessionStart hook: session bootstrap.
 #
@@ -148,7 +148,9 @@ Record decisions via the MCP tool add_decs_decision (or POST to
 never a raw curl typed by hand, see decs/README.md). Read more with
 list_decs_decision, list_decs_plan and list_decs_project. Ask via
 add_decs_question; answers surface automatically in this session's
-awareness — no need to re-poll.${condensed_note}"
+awareness — no need to re-poll. If you asked badly or the question stopped
+mattering, update_decs_question corrects or retires it — never leave a dead
+question sitting in a human's queue.${condensed_note}"
 
     jq -n --arg ctx "$full" '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": $ctx}}'
 }
