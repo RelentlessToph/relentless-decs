@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.1.1 (relentless-decs plugin)
+# decs-version: 1.2.0 (relentless-decs plugin)
 #
 # DECS v2 — Stop hook: hygiene check, BLOCKING per ratified Q1
 # (docs/decs-v2/ai-interfacing-proposal.md §6) with the
@@ -76,7 +76,7 @@ BODY=$(printf '%s' "$RESPONSE" | sed '$d')
 
 touch "$HYGIENE_DONE"
 
-RECORD_HINT="Record decisions via the MCP tool add_decs_decision, or POST to /api/semantic-actions/add.decs.decision with this project's credential (never a raw curl typed by hand — see decs/README.md). Target scope: ${PROJECT_SCOPE_ID}. Session: ${DECS_SESSION_ID}. Before recording, check whether an existing decision already covers this ground with list_decs_decision — one amended record beats two that disagree, and update_decs_decision needs the version that read returns."
+RECORD_HINT="File a decision with add_decs_decision, and everything else with add_decs_session_note. Target scope: ${PROJECT_SCOPE_ID}. Session: ${DECS_SESSION_ID}. Before recording a decision, check whether an existing one already covers this ground with list_decs_decision — one amended record beats two that disagree, and update_decs_decision needs the version that read returns."
 
 if [ "$CODE" != "200" ]; then
     if [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
@@ -102,6 +102,6 @@ if [ "$UNREAD_TOTAL" -gt 0 ]; then
     exit 0
 fi
 
-REASON="DECS v2 Decision Hygiene Check: before ending, review this session for decisions worth recording — technology/API/architecture choices, insights about how the system works or should, constraints discovered, or reversals of prior decisions. ${RECORD_HINT} If there is nothing worth recording, say so and stop."
+REASON="DECS v2 session review: before ending, go back over this session and record what is worth keeping. Two destinations, and the distinction matters. A DECISION is a settled judgement a future session would otherwise re-derive or re-litigate — a technology or architecture choice, a constraint discovered, a prior decision reversed. Everything ELSE worth keeping is an AI SESSION NOTE: what you got done, what you found out, what you tried that did not work, context a later session would have to rediscover. If it is not a settled judgement, it is a session note — filing it as a decision buries the real decisions among the rest. Most sessions produce at least one note and no decisions at all, and that is the normal case, not a failure. ${RECORD_HINT} If there is genuinely nothing worth keeping, say so and stop."
 jq -n --arg reason "$REASON" '{"decision": "block", "reason": $reason}'
 exit 0

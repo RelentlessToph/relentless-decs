@@ -110,7 +110,7 @@ curl -s https://www.relentless.build/api/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-`relentless-decs` publishes the same twenty agent-reachable semantic
+`relentless-decs` publishes the same twenty-one agent-reachable semantic
 actions as MCP tools, same tool-name mapping, as `decs/plugin` — see that
 package's README for the list; nothing about the tool surface differs
 between the two clients. The tool list comes from the server on every

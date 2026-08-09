@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.1.1 (relentless-decs plugin)
+# decs-version: 1.2.0 (relentless-decs plugin)
 #
 # DECS v2 — SessionStart hook: session bootstrap.
 #
@@ -145,8 +145,10 @@ were not requested. Read any of the ids above with list_decs_decision."
 ${text}
 Record decisions via the MCP tool add_decs_decision (or POST to
 /api/semantic-actions/add.decs.decision with this project's credential —
-never a raw curl typed by hand, see decs/README.md). Read more with
-list_decs_decision, list_decs_plan and list_decs_project. Ask via
+never a raw curl typed by hand, see decs/README.md). Everything else worth
+keeping — progress, findings, dead ends, context a later session would
+otherwise have to rediscover — goes to add_decs_session_note instead. Read
+more with list_decs_decision, list_decs_plan and list_decs_project. Ask via
 add_decs_question; answers surface automatically in this session's
 awareness — no need to re-poll. If you asked badly or the question stopped
 mattering, update_decs_question corrects or retires it — never leave a dead

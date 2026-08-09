@@ -1,5 +1,5 @@
 #!/bin/bash
-# decs-version: 1.1.1 (relentless-decs plugin)
+# decs-version: 1.2.0 (relentless-decs plugin)
 #
 # decs-v2-common.sh — shared helpers for the relentless-decs Claude Code
 # plugin's native v2 hooks (session-start.sh, user-prompt-submit.sh,
